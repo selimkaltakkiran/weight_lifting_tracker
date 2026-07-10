@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mv styles.css css/styles.css)",
+      "Bash(mv app.js js/app.js)",
+      "Bash(mv icon.svg icons/icon.svg)",
+      "Bash(mv icon-maskable.svg icons/icon-maskable.svg)",
+      "PowerShell(Get-NetTCPConnection -LocalPort 8080 -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-Process -Id 21232)",
+      "Bash(git init *)",
+      "Bash(git add *)"
+    ]
+  }
+}

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<title>Stack — Progression Tracker</title>
+<meta name="description" content="Track your strength training progression, one plate at a time." />
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#14161A" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Stack" />
+<link rel="apple-touch-icon" href="icons/icon.svg" />
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="css/styles.css" />
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- Header -->
+  <header class="app-header">
+    <div class="wordmark">STA<span>CK</span></div>
+    <button class="icon-btn" type="button" aria-label="Settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"></circle>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+      </svg>
+    </button>
+  </header>
+
+  <!-- Home view -->
+  <main class="app-main" id="view-home">
+
+    <div id="empty-state" class="empty-state" hidden>
+      <svg class="empty-illustration" viewBox="0 0 220 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- bar -->
+        <rect x="10" y="74" width="200" height="10" rx="4" fill="#2E333B"/>
+        <!-- plates, outline / dashed = unloaded -->
+        <rect x="34" y="46" width="14" height="66" rx="6" stroke="#5A5F68" stroke-width="1.6" stroke-dasharray="3 4"/>
+        <rect x="52" y="54" width="12" height="50" rx="5" stroke="#5A5F68" stroke-width="1.6" stroke-dasharray="3 4"/>
+        <rect x="154" y="54" width="12" height="50" rx="5" stroke="#5A5F68" stroke-width="1.6" stroke-dasharray="3 4"/>
+        <!-- one solid plate = first rep waiting to happen -->
+        <rect x="170" y="46" width="14" height="66" rx="6" fill="#2F6FE4"/>
+        <!-- collar clips -->
+        <circle cx="10" cy="79" r="6" fill="#24282F"/>
+        <circle cx="210" cy="79" r="6" fill="#24282F"/>
+      </svg>
+
+      <div class="empty-copy">
+        <h1 class="empty-title">No lifts logged yet</h1>
+        <p class="empty-subtitle">Start your first session to begin tracking progression across your lifts.</p>
+      </div>
+
+      <button class="cta-primary" type="button" id="btn-start-session">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        Start session
+      </button>
+    </div>
+
+    <div id="last-session" class="last-session" hidden>
+      <p class="last-session-label">Last session</p>
+      <h2 class="last-session-date" id="last-session-date"></h2>
+      <ul class="last-session-list" id="last-session-list"></ul>
+      <button class="cta-primary" type="button" id="btn-new-session">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        New session
+      </button>
+    </div>
+
+  </main>
+
+  <!-- Active session view -->
+  <main class="app-main session-view" id="view-session" hidden>
+    <div class="session-header">
+      <button class="icon-btn" type="button" id="btn-cancel-session" aria-label="Cancel session">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+      <h1 class="session-title">Session in progress</h1>
+      <button class="cta-finish" type="button" id="btn-finish-session">Finish</button>
+    </div>
+
+    <div class="exercise-list" id="exercise-list"></div>
+
+    <form class="add-exercise-form" id="add-exercise-form">
+      <input type="text" id="exercise-name-input" placeholder="Exercise name (e.g. Bench Press)" autocomplete="off" required />
+      <button type="submit" class="add-exercise-btn">Add</button>
+    </form>
+  </main>
+
+  <!-- Bottom tab bar -->
+  <nav class="tab-bar" aria-label="Primary">
+    <button class="tab-item is-active" data-tab="home" type="button" aria-current="page">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 11.5 12 4l9 7.5"></path>
+        <path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"></path>
+      </svg>
+      Home
+      <span class="tab-dot"></span>
+    </button>
+    <button class="tab-item" data-tab="log" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 19V6a2 2 0 0 1 2-2h8l6 6v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"></path>
+        <path d="M14 4v6h6"></path>
+        <path d="M9 14h6M9 17h4"></path>
+      </svg>
+      Log
+      <span class="tab-dot"></span>
+    </button>
+    <button class="tab-item" data-tab="progress" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 19h16"></path>
+        <path d="M7 19v-6M12 19V8M17 19v-10"></path>
+      </svg>
+      Progress
+      <span class="tab-dot"></span>
+    </button>
+    <button class="tab-item" data-tab="profile" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="8" r="3.4"></circle>
+        <path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"></path>
+      </svg>
+      Profile
+      <span class="tab-dot"></span>
+    </button>
+  </nav>
+
+</div>
+
+<script src="js/app.js"></script>
+</body>
+</html>
