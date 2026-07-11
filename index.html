@@ -201,25 +201,77 @@
   <!-- Progress view -->
   <main class="app-main progress-view" id="view-progress" hidden>
 
-    <div id="progress-empty-state" class="empty-state" hidden>
-      <div class="empty-copy">
-        <h1 class="empty-title">No exercises yet</h1>
-        <p class="empty-subtitle">Log a session to start tracking progress on each exercise.</p>
+    <!-- List sub-view -->
+    <section class="progress-list" id="progress-list-view">
+      <div class="calendar-header">
+        <button class="icon-btn" type="button" id="btn-progress-prev" aria-label="Previous month">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M15 18l-6-6 6-6"></path>
+          </svg>
+        </button>
+        <h2 class="calendar-month-label" id="progress-month-label"></h2>
+        <button class="icon-btn" type="button" id="btn-progress-next" aria-label="Next month">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 6l6 6-6 6"></path>
+          </svg>
+        </button>
       </div>
-    </div>
 
-    <div class="progress-table-wrap" id="progress-table-wrap" hidden>
-      <table class="progress-table" id="progress-table">
-        <thead>
-          <tr>
-            <th>Exercise</th>
-            <th>Volume this month</th>
-            <th>Avg. reps / session</th>
-          </tr>
-        </thead>
-        <tbody id="progress-table-body"></tbody>
-      </table>
-    </div>
+      <div id="progress-empty-state" class="empty-state" hidden>
+        <div class="empty-copy">
+          <h1 class="empty-title">No exercises yet</h1>
+          <p class="empty-subtitle">Log a session to start tracking progress on each exercise.</p>
+        </div>
+      </div>
+
+      <div class="progress-table-wrap" id="progress-table-wrap" hidden>
+        <table class="progress-table" id="progress-table">
+          <thead>
+            <tr>
+              <th>Exercise</th>
+              <th>Volume this month</th>
+              <th>Avg. reps / session</th>
+            </tr>
+          </thead>
+          <tbody id="progress-table-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Detail sub-view -->
+    <section class="progress-detail" id="progress-detail-view" hidden>
+      <div class="log-day-header">
+        <button class="icon-btn" type="button" id="btn-progress-back" aria-label="Back to progress list">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M15 18l-6-6 6-6"></path>
+          </svg>
+        </button>
+        <h2 class="log-day-date" id="progress-detail-title"></h2>
+      </div>
+
+      <div class="calendar-header">
+        <button class="icon-btn" type="button" id="btn-progress-detail-prev" aria-label="Previous month">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M15 18l-6-6 6-6"></path>
+          </svg>
+        </button>
+        <h2 class="calendar-month-label" id="progress-detail-month-label"></h2>
+        <button class="icon-btn" type="button" id="btn-progress-detail-next" aria-label="Next month">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 6l6 6-6 6"></path>
+          </svg>
+        </button>
+      </div>
+
+      <div id="progress-detail-empty" class="empty-state" hidden>
+        <div class="empty-copy">
+          <h1 class="empty-title">Not enough data</h1>
+          <p class="empty-subtitle">Log this exercise on more days this month to see a trend.</p>
+        </div>
+      </div>
+
+      <div class="progress-chart-wrap" id="progress-chart-wrap"></div>
+    </section>
 
   </main>
 

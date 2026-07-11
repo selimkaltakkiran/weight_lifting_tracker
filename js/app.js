@@ -272,11 +272,34 @@ async function showDayView(date) {
 const progressEmptyState = document.getElementById('progress-empty-state');
 const progressTableWrap = document.getElementById('progress-table-wrap');
 const progressTableBodyEl = document.getElementById('progress-table-body');
+const progressListView = document.getElementById('progress-list-view');
+const progressDetailView = document.getElementById('progress-detail-view');
+const progressDetailTitleEl = document.getElementById('progress-detail-title');
+const progressDetailEmptyEl = document.getElementById('progress-detail-empty');
+const progressChartWrapEl = document.getElementById('progress-chart-wrap');
+const progressMonthLabelEl = document.getElementById('progress-month-label');
+const progressDetailMonthLabelEl = document.getElementById('progress-detail-month-label');
+
+let progressMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+let currentDetailExercise = null;
+let currentDetailMetric = 'volume';
+
+const PROGRESS_METRICS = {
+  volume: { label: 'Volume', unit: 'kg', valueFor: (s) => s.weight * s.reps },
+  reps: { label: 'Avg. Reps', unit: ' reps', valueFor: (s) => s.reps },
+};
+
+function progressMonthLabel(monthDate) {
+  return monthDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+}
 
 async function renderProgress() {
+  progressDetailView.hidden = true;
+  progressListView.hidden = false;
+  progressMonthLabelEl.textContent = progressMonthLabel(progressMonth);
+
   const sessions = await getSessions();
-  const now = new Date();
-  const monthKey = `${now.getFullYear()}-${now.getMonth()}`;
+  const monthKey = `${progressMonth.getFullYear()}-${progressMonth.getMonth()}`;
 
   const stats = new Map(); // name -> { volume, reps, sessions }
 
@@ -312,14 +335,179 @@ async function renderProgress() {
     const { volume, reps, sessions: sessionCount } = stats.get(name);
     const avgReps = reps / sessionCount;
     const tr = document.createElement('tr');
+    tr.className = 'progress-row';
     tr.innerHTML = `
       <td>${escapeHtml(name)}</td>
-      <td>${Math.round(volume * 100) / 100}kg</td>
-      <td>${Math.round(avgReps * 10) / 10}</td>
+      <td class="metric-clickable" data-metric="volume">${Math.round(volume * 100) / 100}kg</td>
+      <td class="metric-clickable" data-metric="reps">${Math.round(avgReps * 10) / 10}</td>
     `;
+    tr.querySelector('[data-metric="volume"]').addEventListener('click', () => showProgressDetail(name, 'volume'));
+    tr.querySelector('[data-metric="reps"]').addEventListener('click', () => showProgressDetail(name, 'reps'));
     progressTableBodyEl.appendChild(tr);
   });
 }
+
+function showProgressDetail(name, metric) {
+  currentDetailExercise = name;
+  currentDetailMetric = metric;
+  progressListView.hidden = true;
+  progressDetailView.hidden = false;
+  progressDetailTitleEl.textContent = `${name} — ${PROGRESS_METRICS[metric].label}`;
+  renderProgressDetail(name, metric);
+}
+
+async function renderProgressDetail(name, metric = currentDetailMetric) {
+  const metricConfig = PROGRESS_METRICS[metric];
+  progressDetailMonthLabelEl.textContent = progressMonthLabel(progressMonth);
+
+  const sessions = await getSessions();
+  const monthKey = `${progressMonth.getFullYear()}-${progressMonth.getMonth()}`;
+
+  const dayValues = new Map(); // dateKey -> { day, value }
+
+  sessions.forEach((session) => {
+    const d = new Date(session.startedAt);
+    if (`${d.getFullYear()}-${d.getMonth()}` !== monthKey) return;
+
+    session.exercises.forEach((ex) => {
+      if (ex.name !== name || ex.sets.length === 0) return;
+      const key = dateKey(session.startedAt);
+      if (!dayValues.has(key)) dayValues.set(key, { day: d.getDate(), value: 0 });
+      const entry = dayValues.get(key);
+      ex.sets.forEach((s) => {
+        entry.value += metricConfig.valueFor(s);
+      });
+    });
+  });
+
+  const points = Array.from(dayValues.values()).sort((a, b) => a.day - b.day);
+
+  if (points.length < 2) {
+    progressDetailEmptyEl.hidden = false;
+    progressChartWrapEl.hidden = true;
+    return;
+  }
+
+  progressDetailEmptyEl.hidden = true;
+  progressChartWrapEl.hidden = false;
+
+  progressChartWrapEl.innerHTML = `
+    <div class="progress-chart-canvas">
+      ${buildMetricChartSvg(points, metricConfig)}
+      <div class="progress-chart-tooltip" id="progress-chart-tooltip" hidden></div>
+    </div>
+  `;
+
+  attachChartTooltips(progressChartWrapEl, metricConfig);
+}
+
+function buildMetricChartSvg(points, metricConfig) {
+  const width = 600;
+  const height = 260;
+  const padding = { top: 16, right: 16, bottom: 40, left: 50 };
+  const chartW = width - padding.left - padding.right;
+  const chartH = height - padding.top - padding.bottom;
+
+  const maxValue = Math.max(...points.map((p) => p.value));
+  const minValue = 0;
+
+  const xFor = (i) => padding.left + (points.length === 1 ? chartW / 2 : (i / (points.length - 1)) * chartW);
+  const yFor = (v) => padding.top + chartH - ((v - minValue) / (maxValue - minValue || 1)) * chartH;
+
+  const coords = points.map((p, i) => ({ x: xFor(i), y: yFor(p.value), ...p }));
+
+  const linePoints = coords.map((c) => `${c.x},${c.y}`).join(' ');
+
+  const gridSteps = [0, 0.25, 0.5, 0.75, 1];
+  const gridLines = gridSteps
+    .map((t) => padding.top + chartH * (1 - t))
+    .map((y) => `<line x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}" stroke="var(--border)" stroke-width="1" />`)
+    .join('');
+
+  const yTickLabels = gridSteps
+    .map((t) => ({ y: padding.top + chartH * (1 - t), value: maxValue * t }))
+    .map((tick) => `<text x="${padding.left - 8}" y="${tick.y + 3}" text-anchor="end" class="chart-label">${Math.round(tick.value)}</text>`)
+    .join('');
+
+  const showEveryLabel = points.length <= 15;
+  const dayLabels = coords
+    .filter((c, i) => showEveryLabel || i % 2 === 0)
+    .map((c) => `<text x="${c.x}" y="${height - padding.bottom + 16}" text-anchor="middle" class="chart-label">${c.day}</text>`)
+    .join('');
+
+  const dots = coords
+    .map(
+      (c) =>
+        `<circle class="chart-dot" cx="${c.x}" cy="${c.y}" r="4" fill="var(--accent)" data-day="${c.day}" data-value="${Math.round(c.value * 100) / 100}"></circle>`
+    )
+    .join('');
+
+  const axisTitleY = `<text x="14" y="${padding.top + chartH / 2}" text-anchor="middle" class="chart-axis-title" transform="rotate(-90 14 ${padding.top + chartH / 2})">${metricConfig.label} (${metricConfig.unit.trim()})</text>`;
+  const axisTitleX = `<text x="${padding.left + chartW / 2}" y="${height - 6}" text-anchor="middle" class="chart-axis-title">Day of month</text>`;
+
+  return `
+    <svg viewBox="0 0 ${width} ${height}" class="progress-chart-svg" preserveAspectRatio="none">
+      ${gridLines}
+      ${yTickLabels}
+      <polyline points="${linePoints}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+      ${dots}
+      ${dayLabels}
+      ${axisTitleY}
+      ${axisTitleX}
+    </svg>
+  `;
+}
+
+function attachChartTooltips(container, metricConfig) {
+  const tooltip = container.querySelector('#progress-chart-tooltip');
+  const canvas = container.querySelector('.progress-chart-canvas');
+  if (!tooltip || !canvas) return;
+
+  const showTooltip = (dot, e) => {
+    const rect = canvas.getBoundingClientRect();
+    tooltip.hidden = false;
+    tooltip.textContent = `Day ${dot.dataset.day}: ${dot.dataset.value}${metricConfig.unit}`;
+    tooltip.style.left = `${e.clientX - rect.left}px`;
+    tooltip.style.top = `${e.clientY - rect.top}px`;
+  };
+
+  container.querySelectorAll('.chart-dot').forEach((dot) => {
+    dot.addEventListener('mouseenter', (e) => showTooltip(dot, e));
+    dot.addEventListener('mousemove', (e) => showTooltip(dot, e));
+    dot.addEventListener('mouseleave', () => {
+      tooltip.hidden = true;
+    });
+  });
+}
+
+document.getElementById('btn-progress-back').addEventListener('click', () => {
+  progressDetailView.hidden = true;
+  progressListView.hidden = false;
+});
+
+function shiftProgressMonth(delta) {
+  progressMonth = new Date(progressMonth.getFullYear(), progressMonth.getMonth() + delta, 1);
+}
+
+document.getElementById('btn-progress-prev').addEventListener('click', () => {
+  shiftProgressMonth(-1);
+  renderProgress();
+});
+
+document.getElementById('btn-progress-next').addEventListener('click', () => {
+  shiftProgressMonth(1);
+  renderProgress();
+});
+
+document.getElementById('btn-progress-detail-prev').addEventListener('click', () => {
+  shiftProgressMonth(-1);
+  renderProgressDetail(currentDetailExercise);
+});
+
+document.getElementById('btn-progress-detail-next').addEventListener('click', () => {
+  shiftProgressMonth(1);
+  renderProgressDetail(currentDetailExercise);
+});
 
 const deleteModal = document.getElementById('confirm-delete-modal');
 const deleteModalText = document.getElementById('confirm-delete-text');
