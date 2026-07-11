@@ -37,6 +37,36 @@
     </button>
   </header>
 
+  <!-- Auth gate -->
+  <main class="app-main auth-view" id="view-auth" hidden>
+    <div class="auth-card">
+      <div class="wordmark">STA<span>CK</span></div>
+      <p class="auth-subtitle">Sign in to track your progression.</p>
+
+      <div id="auth-error" class="auth-error" hidden></div>
+
+      <form class="auth-form" id="auth-form">
+        <input type="email" id="auth-email" placeholder="Email" autocomplete="email" required />
+        <input type="password" id="auth-password" placeholder="Password" autocomplete="current-password" required />
+        <button type="submit" class="cta-primary auth-submit-btn" id="auth-submit-btn">Sign in</button>
+      </form>
+
+      <button type="button" class="auth-toggle-mode" id="auth-toggle-mode">Need an account? Sign up</button>
+
+      <div class="auth-divider"><span>or</span></div>
+
+      <button type="button" class="auth-google-btn" id="btn-google-signin">
+        <svg viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg">
+          <path fill="#4285F4" d="M23.52 12.27c0-.85-.08-1.67-.22-2.45H12v4.64h6.47a5.53 5.53 0 0 1-2.4 3.63v3h3.88c2.27-2.09 3.57-5.17 3.57-8.82Z"/>
+          <path fill="#34A853" d="M12 24c3.24 0 5.96-1.07 7.95-2.91l-3.88-3c-1.08.72-2.45 1.15-4.07 1.15-3.13 0-5.78-2.11-6.73-4.95H1.26v3.1A12 12 0 0 0 12 24Z"/>
+          <path fill="#FBBC05" d="M5.27 14.29a7.2 7.2 0 0 1 0-4.58v-3.1H1.26a12 12 0 0 0 0 10.78l4.01-3.1Z"/>
+          <path fill="#EA4335" d="M12 4.75c1.76 0 3.34.6 4.59 1.79l3.44-3.44C17.95 1.19 15.24 0 12 0A12 12 0 0 0 1.26 6.61l4.01 3.1C6.22 6.86 8.87 4.75 12 4.75Z"/>
+        </svg>
+        Continue with Google
+      </button>
+    </div>
+  </main>
+
   <!-- Home view -->
   <main class="app-main" id="view-home">
 
@@ -100,9 +130,177 @@
     <div class="exercise-list" id="exercise-list"></div>
 
     <form class="add-exercise-form" id="add-exercise-form">
-      <input type="text" id="exercise-name-input" placeholder="Exercise name (e.g. Bench Press)" autocomplete="off" required />
+      <input type="text" id="exercise-name-input" placeholder="Exercise name (e.g. Bench Press)" autocomplete="off" list="exercise-datalist" required />
+      <datalist id="exercise-datalist"></datalist>
       <button type="submit" class="add-exercise-btn">Add</button>
     </form>
+  </main>
+
+  <!-- Log view -->
+  <main class="app-main log-view" id="view-log" hidden>
+
+    <!-- Calendar sub-view -->
+    <section class="log-calendar" id="log-calendar-view">
+      <div class="calendar-header">
+        <button class="icon-btn" type="button" id="btn-cal-prev" aria-label="Previous month">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M15 18l-6-6 6-6"></path>
+          </svg>
+        </button>
+        <h2 class="calendar-month-label" id="calendar-month-label"></h2>
+        <button class="icon-btn" type="button" id="btn-cal-next" aria-label="Next month">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 6l6 6-6 6"></path>
+          </svg>
+        </button>
+      </div>
+      <div class="calendar-weekdays">
+        <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
+      </div>
+      <div class="calendar-grid" id="calendar-grid"></div>
+    </section>
+
+    <!-- Day sub-view -->
+    <section class="log-day" id="log-day-view" hidden>
+      <div class="log-day-header">
+        <button class="icon-btn" type="button" id="btn-day-back" aria-label="Back to calendar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M15 18l-6-6 6-6"></path>
+          </svg>
+        </button>
+        <h2 class="log-day-date" id="log-day-date"></h2>
+      </div>
+
+      <div id="log-empty-state" class="empty-state" hidden>
+        <div class="empty-copy">
+          <h1 class="empty-title">No lifts logged yet</h1>
+          <p class="empty-subtitle">Finish a session to see it show up here.</p>
+        </div>
+      </div>
+
+      <div class="log-table-wrap" id="log-table-wrap" hidden>
+        <table class="log-table" id="log-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Weight</th>
+              <th>Reps</th>
+              <th>Sets</th>
+              <th>Total</th>
+              <th>Avg. set vol</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody id="log-table-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Progress view -->
+  <main class="app-main progress-view" id="view-progress" hidden>
+
+    <div id="progress-empty-state" class="empty-state" hidden>
+      <div class="empty-copy">
+        <h1 class="empty-title">No exercises yet</h1>
+        <p class="empty-subtitle">Log a session to start tracking progress on each exercise.</p>
+      </div>
+    </div>
+
+    <div class="progress-table-wrap" id="progress-table-wrap" hidden>
+      <table class="progress-table" id="progress-table">
+        <thead>
+          <tr>
+            <th>Exercise</th>
+            <th>Volume this month</th>
+            <th>Avg. reps / session</th>
+          </tr>
+        </thead>
+        <tbody id="progress-table-body"></tbody>
+      </table>
+    </div>
+
+  </main>
+
+  <!-- Confirm delete modal -->
+  <div class="modal-overlay" id="confirm-delete-modal" hidden>
+    <div class="modal-card">
+      <h2 class="modal-title">Delete exercise?</h2>
+      <p class="modal-text" id="confirm-delete-text"></p>
+      <div class="modal-actions">
+        <button type="button" class="modal-btn modal-btn-cancel" id="cancel-delete-btn">Cancel</button>
+        <button type="button" class="modal-btn modal-btn-danger" id="confirm-delete-btn">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit profile modal -->
+  <div class="modal-overlay" id="edit-profile-modal" hidden>
+    <div class="modal-card">
+      <h2 class="modal-title">Edit Profile</h2>
+      <form class="profile-form" id="edit-profile-form">
+        <label class="profile-field">
+          <span>Gender</span>
+          <select id="profile-input-gender">
+            <option value="">—</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+            <option value="other">Other</option>
+          </select>
+        </label>
+        <label class="profile-field">
+          <span>Age</span>
+          <input type="number" id="profile-input-age" min="0" max="120" step="1" inputmode="numeric" />
+        </label>
+        <label class="profile-field">
+          <span>Height (cm)</span>
+          <input type="number" id="profile-input-height" min="0" step="0.1" inputmode="decimal" />
+        </label>
+        <label class="profile-field">
+          <span>Weight (kg)</span>
+          <input type="number" id="profile-input-weight" min="0" step="0.1" inputmode="decimal" />
+        </label>
+        <div class="modal-actions">
+          <button type="button" class="modal-btn modal-btn-cancel" id="cancel-edit-profile-btn">Cancel</button>
+          <button type="submit" class="modal-btn modal-btn-save">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Profile view -->
+  <main class="app-main" id="view-profile" hidden>
+    <div class="profile-card">
+      <p class="profile-email" id="profile-email"></p>
+
+      <div class="profile-stats" id="profile-stats">
+        <div class="profile-stat">
+          <span class="profile-stat-label">Gender</span>
+          <span class="profile-stat-value" id="profile-gender">—</span>
+        </div>
+        <div class="profile-stat">
+          <span class="profile-stat-label">Age</span>
+          <span class="profile-stat-value" id="profile-age">—</span>
+        </div>
+        <div class="profile-stat">
+          <span class="profile-stat-label">Height</span>
+          <span class="profile-stat-value" id="profile-height">—</span>
+        </div>
+        <div class="profile-stat">
+          <span class="profile-stat-label">Weight</span>
+          <span class="profile-stat-value" id="profile-weight">—</span>
+        </div>
+      </div>
+
+      <button type="button" class="cta-edit-profile" id="btn-edit-profile">Edit Profile</button>
+
+      <p class="import-hint">CSV columns: <strong>date</strong> (M/D/YYYY), <strong>name</strong>, <strong>weight</strong>, <strong>reps</strong>, <strong>sets</strong>, <strong>notes</strong> (optional). Extra columns like total/avg set vol are ignored.</p>
+      <input type="file" id="csv-import-input" accept=".csv,text/csv" hidden />
+      <button type="button" class="cta-import" id="btn-import-csv">Import CSV</button>
+      <div id="import-status" class="import-status" hidden></div>
+      <button type="button" class="cta-signout" id="btn-sign-out">Sign out</button>
+    </div>
   </main>
 
   <!-- Bottom tab bar -->
@@ -144,6 +342,6 @@
 
 </div>
 
-<script src="js/app.js"></script>
+<script type="module" src="js/app.js"></script>
 </body>
 </html>

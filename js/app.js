@@ -1,4 +1,8 @@
 // Stack — app shell bootstrap
+import { initAuth } from './auth.js';
+import { getSessions, addSession, updateSessionExercises, migrateLocalDataIfNeeded, getUserProfile, updateUserProfile } from './data.js';
+import { parseWorkoutCsv } from './csv-import.js';
+import { getExercises, addExerciseIfNew, syncSeedExercises } from './exercises.js';
 
 // Register service worker for offline/installable support
 if ('serviceWorker' in navigator) {
@@ -9,19 +13,43 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// Tab switching (visual only — routes come later)
+// Tab switching
+const viewProfile = document.getElementById('view-profile');
+const viewLog = document.getElementById('view-log');
+const viewProgress = document.getElementById('view-progress');
+
 document.querySelectorAll('.tab-item').forEach((tab) => {
   tab.addEventListener('click', () => {
     document.querySelectorAll('.tab-item').forEach((t) => t.classList.remove('is-active'));
     tab.classList.add('is-active');
+
+    const isProfile = tab.dataset.tab === 'profile';
+    const isLog = tab.dataset.tab === 'log';
+    const isProgress = tab.dataset.tab === 'progress';
+    viewProfile.hidden = !isProfile;
+    viewLog.hidden = !isLog;
+    viewProgress.hidden = !isProgress;
+    if (isProfile) {
+      viewHome.hidden = true;
+      viewSession.hidden = true;
+      renderProfile();
+    } else if (isLog) {
+      viewHome.hidden = true;
+      viewSession.hidden = true;
+      renderLog();
+    } else if (isProgress) {
+      viewHome.hidden = true;
+      viewSession.hidden = true;
+      renderProgress();
+    } else if (tab.dataset.tab === 'home') {
+      showHome();
+    }
   });
 });
 
 /* ==========================================================================
    Session tracking
    ========================================================================== */
-
-const STORAGE_KEY = 'stack.sessions';
 
 const viewHome = document.getElementById('view-home');
 const viewSession = document.getElementById('view-session');
@@ -32,20 +60,18 @@ const lastSessionListEl = document.getElementById('last-session-list');
 const exerciseListEl = document.getElementById('exercise-list');
 const addExerciseForm = document.getElementById('add-exercise-form');
 const exerciseNameInput = document.getElementById('exercise-name-input');
+const exerciseDatalistEl = document.getElementById('exercise-datalist');
 
-let activeSession = null; // { startedAt, exercises: [{ name, sets: [{ weight, reps }] }] }
-
-function getSessions() {
+async function renderExerciseDatalist() {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-  } catch {
-    return [];
+    const names = await getExercises();
+    exerciseDatalistEl.innerHTML = names.map((name) => `<option value="${escapeHtml(name)}"></option>`).join('');
+  } catch (err) {
+    console.warn('renderExerciseDatalist failed:', err);
   }
 }
 
-function saveSessions(sessions) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
-}
+let activeSession = null; // { startedAt, exercises: [{ name, sets: [{ weight, reps }] }] }
 
 function formatDate(iso) {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -61,8 +87,13 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-function renderHome() {
-  const sessions = getSessions();
+function dateKey(iso) {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+async function renderHome() {
+  const sessions = await getSessions();
   const last = sessions[sessions.length - 1];
 
   if (!last) {
@@ -87,6 +118,255 @@ function renderHome() {
   });
 }
 
+const logEmptyState = document.getElementById('log-empty-state');
+const logTableWrap = document.getElementById('log-table-wrap');
+const logTableBodyEl = document.getElementById('log-table-body');
+const logCalendarView = document.getElementById('log-calendar-view');
+const logDayView = document.getElementById('log-day-view');
+const calendarMonthLabelEl = document.getElementById('calendar-month-label');
+const calendarGridEl = document.getElementById('calendar-grid');
+const logDayDateEl = document.getElementById('log-day-date');
+
+let calendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+
+function sessionRows(sessions) {
+  const rows = [];
+  sessions.forEach((session) => {
+    session.exercises.forEach((ex, exIndex) => {
+      if (ex.sets.length === 0) return;
+      const total = ex.sets.reduce((sum, s) => sum + s.weight * s.reps, 0);
+      rows.push({
+        date: session.startedAt,
+        sessionId: session.id,
+        exIndex,
+        name: ex.name,
+        weight: ex.sets[0].weight,
+        reps: ex.sets[0].reps,
+        sets: ex.sets.length,
+        total,
+        avgSetVol: total / ex.sets.length,
+        notes: ex.notes || '',
+      });
+    });
+  });
+  rows.sort((a, b) => new Date(a.date) - new Date(b.date));
+  return rows;
+}
+
+async function deleteExerciseRow(sessionId, exIndex) {
+  const sessions = await getSessions();
+  const session = sessions.find((s) => s.id === sessionId);
+  if (!session) return;
+  const exercises = session.exercises.filter((_, i) => i !== exIndex);
+  await updateSessionExercises(sessionId, exercises);
+}
+
+async function renderLog() {
+  logDayView.hidden = true;
+  logCalendarView.hidden = false;
+  await renderCalendar();
+}
+
+async function renderCalendar() {
+  const sessions = await getSessions();
+  const daysWithSessions = new Set(sessions.map((s) => dateKey(s.startedAt)));
+
+  calendarMonthLabelEl.textContent = calendarMonth.toLocaleDateString(undefined, {
+    month: 'long',
+    year: 'numeric',
+  });
+
+  const year = calendarMonth.getFullYear();
+  const month = calendarMonth.getMonth();
+  const firstOfMonth = new Date(year, month, 1);
+  const startOffset = firstOfMonth.getDay();
+  const gridStart = new Date(year, month, 1 - startOffset);
+  const today = new Date();
+  const todayKey = dateKey(today.toISOString());
+
+  calendarGridEl.innerHTML = '';
+
+  for (let i = 0; i < 42; i++) {
+    const cellDate = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i);
+    const isOutside = cellDate.getMonth() !== month;
+    const key = `${cellDate.getFullYear()}-${cellDate.getMonth()}-${cellDate.getDate()}`;
+
+    const cell = document.createElement('button');
+    cell.type = 'button';
+    cell.className = 'calendar-day';
+    if (isOutside) cell.classList.add('is-outside');
+    if (key === todayKey) cell.classList.add('is-today');
+    if (daysWithSessions.has(key)) cell.classList.add('has-sessions');
+    cell.textContent = cellDate.getDate();
+    cell.addEventListener('click', () => showDayView(cellDate));
+    calendarGridEl.appendChild(cell);
+  }
+}
+
+async function showDayView(date) {
+  logCalendarView.hidden = true;
+  logDayView.hidden = false;
+  logDayDateEl.textContent = formatDate(date.toISOString());
+
+  const sessions = await getSessions();
+  const key = dateKey(date.toISOString());
+  const rows = sessionRows(sessions).filter((row) => dateKey(row.date) === key);
+
+  if (rows.length === 0) {
+    logEmptyState.hidden = false;
+    logTableWrap.hidden = true;
+    return;
+  }
+
+  logEmptyState.hidden = true;
+  logTableWrap.hidden = false;
+  logTableBodyEl.innerHTML = '';
+
+  rows.forEach((row) => {
+    const tr = document.createElement('tr');
+    tr.className = 'log-row';
+    tr.innerHTML = `
+      <td>${escapeHtml(row.name)}</td>
+      <td>${row.weight}</td>
+      <td>${row.reps}</td>
+      <td>${row.sets}</td>
+      <td>${row.total}</td>
+      <td>${Math.round(row.avgSetVol * 100) / 100}</td>
+      <td>${escapeHtml(row.notes)}</td>
+    `;
+
+    const actionsTr = document.createElement('tr');
+    actionsTr.className = 'log-actions-row';
+    actionsTr.hidden = true;
+    actionsTr.innerHTML = `
+      <td colspan="7">
+        <div class="log-row-actions">
+          <button type="button" class="log-action-btn log-edit-btn">Edit</button>
+          <button type="button" class="log-action-btn log-delete-btn">Delete</button>
+        </div>
+      </td>
+    `;
+
+    tr.addEventListener('click', () => {
+      const wasHidden = actionsTr.hidden;
+      logTableBodyEl.querySelectorAll('.log-actions-row').forEach((el) => {
+        el.hidden = true;
+      });
+      logTableBodyEl.querySelectorAll('.log-row').forEach((el) => {
+        el.classList.remove('is-expanded');
+      });
+      actionsTr.hidden = !wasHidden;
+      tr.classList.toggle('is-expanded', !wasHidden);
+    });
+
+    actionsTr.querySelector('.log-delete-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      openDeleteExerciseModal(row, date);
+    });
+
+    logTableBodyEl.appendChild(tr);
+    logTableBodyEl.appendChild(actionsTr);
+  });
+}
+
+const progressEmptyState = document.getElementById('progress-empty-state');
+const progressTableWrap = document.getElementById('progress-table-wrap');
+const progressTableBodyEl = document.getElementById('progress-table-body');
+
+async function renderProgress() {
+  const sessions = await getSessions();
+  const now = new Date();
+  const monthKey = `${now.getFullYear()}-${now.getMonth()}`;
+
+  const stats = new Map(); // name -> { volume, reps, sessions }
+
+  sessions.forEach((session) => {
+    const d = new Date(session.startedAt);
+    if (`${d.getFullYear()}-${d.getMonth()}` !== monthKey) return;
+
+    session.exercises.forEach((ex) => {
+      if (ex.sets.length === 0) return;
+      if (!stats.has(ex.name)) stats.set(ex.name, { volume: 0, reps: 0, sessions: 0 });
+      const entry = stats.get(ex.name);
+      entry.sessions += 1;
+      ex.sets.forEach((s) => {
+        entry.volume += s.weight * s.reps;
+        entry.reps += s.reps;
+      });
+    });
+  });
+
+  const names = Array.from(stats.keys()).sort((a, b) => a.localeCompare(b));
+
+  if (names.length === 0) {
+    progressEmptyState.hidden = false;
+    progressTableWrap.hidden = true;
+    return;
+  }
+
+  progressEmptyState.hidden = true;
+  progressTableWrap.hidden = false;
+  progressTableBodyEl.innerHTML = '';
+
+  names.forEach((name) => {
+    const { volume, reps, sessions: sessionCount } = stats.get(name);
+    const avgReps = reps / sessionCount;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(name)}</td>
+      <td>${Math.round(volume * 100) / 100}kg</td>
+      <td>${Math.round(avgReps * 10) / 10}</td>
+    `;
+    progressTableBodyEl.appendChild(tr);
+  });
+}
+
+const deleteModal = document.getElementById('confirm-delete-modal');
+const deleteModalText = document.getElementById('confirm-delete-text');
+const deleteModalConfirmBtn = document.getElementById('confirm-delete-btn');
+const deleteModalCancelBtn = document.getElementById('cancel-delete-btn');
+let pendingDelete = null;
+
+function openDeleteExerciseModal(row, date) {
+  pendingDelete = { sessionId: row.sessionId, exIndex: row.exIndex, date };
+  deleteModalText.textContent = `Delete "${row.name}" from this session? This can't be undone.`;
+  deleteModal.hidden = false;
+}
+
+function closeDeleteExerciseModal() {
+  deleteModal.hidden = true;
+  pendingDelete = null;
+}
+
+deleteModalCancelBtn.addEventListener('click', closeDeleteExerciseModal);
+deleteModal.addEventListener('click', (e) => {
+  if (e.target === deleteModal) closeDeleteExerciseModal();
+});
+
+deleteModalConfirmBtn.addEventListener('click', async () => {
+  if (!pendingDelete) return;
+  const { sessionId, exIndex, date } = pendingDelete;
+  await deleteExerciseRow(sessionId, exIndex);
+  closeDeleteExerciseModal();
+  await showDayView(date);
+  await renderCalendar();
+});
+
+document.getElementById('btn-day-back').addEventListener('click', () => {
+  logDayView.hidden = true;
+  logCalendarView.hidden = false;
+});
+
+document.getElementById('btn-cal-prev').addEventListener('click', () => {
+  calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1);
+  renderCalendar();
+});
+
+document.getElementById('btn-cal-next').addEventListener('click', () => {
+  calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1);
+  renderCalendar();
+});
+
 function showHome() {
   viewHome.hidden = false;
   viewSession.hidden = true;
@@ -97,6 +377,7 @@ function showSession() {
   viewHome.hidden = true;
   viewSession.hidden = false;
   renderExerciseList();
+  renderExerciseDatalist();
 }
 
 function startSession() {
@@ -113,7 +394,7 @@ function cancelSession() {
   showHome();
 }
 
-function finishSession() {
+async function finishSession() {
   const exercisesWithSets = activeSession.exercises.filter((ex) => ex.sets.length > 0);
   if (exercisesWithSets.length === 0) {
     const ok = confirm('No sets logged. Discard this session?');
@@ -123,9 +404,7 @@ function finishSession() {
     }
     return;
   }
-  const sessions = getSessions();
-  sessions.push({ ...activeSession, exercises: exercisesWithSets, endedAt: new Date().toISOString() });
-  saveSessions(sessions);
+  await addSession({ ...activeSession, exercises: exercisesWithSets, endedAt: new Date().toISOString() });
   activeSession = null;
   showHome();
 }
@@ -198,6 +477,154 @@ addExerciseForm.addEventListener('submit', (e) => {
   activeSession.exercises.push({ name, sets: [] });
   exerciseNameInput.value = '';
   renderExerciseList();
+  addExerciseIfNew(name)
+    .catch((err) => console.warn('addExerciseIfNew failed:', err))
+    .then(renderExerciseDatalist);
 });
 
-showHome();
+/* ==========================================================================
+   CSV import
+   ========================================================================== */
+
+const btnImportCsv = document.getElementById('btn-import-csv');
+const csvImportInput = document.getElementById('csv-import-input');
+const importStatusEl = document.getElementById('import-status');
+
+btnImportCsv.addEventListener('click', () => csvImportInput.click());
+
+function exerciseSignature(dateIso, ex) {
+  const setsCount = ex.sets.length;
+  const weight = setsCount > 0 ? ex.sets[0].weight : 0;
+  const reps = setsCount > 0 ? ex.sets[0].reps : 0;
+  return `${dateKey(dateIso)}|${ex.name.trim().toLowerCase()}|${weight}|${reps}|${setsCount}`;
+}
+
+csvImportInput.addEventListener('change', async () => {
+  const file = csvImportInput.files[0];
+  if (!file) return;
+
+  const text = await file.text();
+  const { sessions: parsedSessions, errors } = parseWorkoutCsv(text);
+
+  const existingSessions = await getSessions();
+  const seenSignatures = new Set();
+  existingSessions.forEach((session) => {
+    session.exercises.forEach((ex) => seenSignatures.add(exerciseSignature(session.startedAt, ex)));
+  });
+
+  let duplicateCount = 0;
+  const sessions = [];
+  parsedSessions.forEach((session) => {
+    const newExercises = session.exercises.filter((ex) => {
+      const sig = exerciseSignature(session.startedAt, ex);
+      if (seenSignatures.has(sig)) {
+        duplicateCount++;
+        return false;
+      }
+      seenSignatures.add(sig);
+      return true;
+    });
+    if (newExercises.length > 0) {
+      sessions.push({ ...session, exercises: newExercises });
+    }
+  });
+
+  for (const session of sessions) {
+    await addSession(session);
+  }
+
+  const exerciseCount = sessions.reduce((sum, s) => sum + s.exercises.length, 0);
+  const parts = [];
+  if (sessions.length > 0) {
+    parts.push(`Imported ${sessions.length} session${sessions.length === 1 ? '' : 's'} (${exerciseCount} exercise${exerciseCount === 1 ? '' : 's'}).`);
+  }
+  if (duplicateCount > 0) {
+    parts.push(`${duplicateCount} duplicate row${duplicateCount === 1 ? '' : 's'} skipped.`);
+  }
+  if (errors.length > 0) {
+    parts.push(`${errors.length} row${errors.length === 1 ? '' : 's'} skipped: ${errors.join(' ')}`);
+  }
+  if (parts.length === 0) {
+    parts.push('No rows found in CSV.');
+  }
+
+  importStatusEl.textContent = parts.join(' ');
+  importStatusEl.classList.toggle('is-error', errors.length > 0);
+  importStatusEl.hidden = false;
+
+  csvImportInput.value = '';
+
+  if (!viewLog.hidden) renderCalendar();
+  if (!viewHome.hidden) renderHome();
+});
+
+/* ==========================================================================
+   Profile
+   ========================================================================== */
+
+const profileGenderEl = document.getElementById('profile-gender');
+const profileAgeEl = document.getElementById('profile-age');
+const profileHeightEl = document.getElementById('profile-height');
+const profileWeightEl = document.getElementById('profile-weight');
+const btnEditProfile = document.getElementById('btn-edit-profile');
+const editProfileModal = document.getElementById('edit-profile-modal');
+const editProfileForm = document.getElementById('edit-profile-form');
+const cancelEditProfileBtn = document.getElementById('cancel-edit-profile-btn');
+const profileInputGender = document.getElementById('profile-input-gender');
+const profileInputAge = document.getElementById('profile-input-age');
+const profileInputHeight = document.getElementById('profile-input-height');
+const profileInputWeight = document.getElementById('profile-input-weight');
+
+const GENDER_LABELS = { male: 'Male', female: 'Female', other: 'Other' };
+
+async function renderProfile() {
+  const profile = await getUserProfile();
+  profileGenderEl.textContent = GENDER_LABELS[profile.gender] || '—';
+  profileAgeEl.textContent = profile.age != null ? profile.age : '—';
+  profileHeightEl.textContent = profile.height != null ? `${profile.height} cm` : '—';
+  profileWeightEl.textContent = profile.weight != null ? `${profile.weight} kg` : '—';
+}
+
+async function openEditProfileModal() {
+  const profile = await getUserProfile();
+  profileInputGender.value = profile.gender || '';
+  profileInputAge.value = profile.age ?? '';
+  profileInputHeight.value = profile.height ?? '';
+  profileInputWeight.value = profile.weight ?? '';
+  editProfileModal.hidden = false;
+}
+
+function closeEditProfileModal() {
+  editProfileModal.hidden = true;
+}
+
+btnEditProfile.addEventListener('click', openEditProfileModal);
+cancelEditProfileBtn.addEventListener('click', closeEditProfileModal);
+editProfileModal.addEventListener('click', (e) => {
+  if (e.target === editProfileModal) closeEditProfileModal();
+});
+
+editProfileForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const profile = {
+    gender: profileInputGender.value,
+    age: profileInputAge.value ? parseInt(profileInputAge.value, 10) : null,
+    height: profileInputHeight.value ? parseFloat(profileInputHeight.value) : null,
+    weight: profileInputWeight.value ? parseFloat(profileInputWeight.value) : null,
+  };
+  await updateUserProfile(profile);
+  closeEditProfileModal();
+  renderProfile();
+});
+
+initAuth(
+  async () => {
+    await migrateLocalDataIfNeeded();
+    showHome();
+    syncSeedExercises().catch((err) => console.warn('syncSeedExercises failed:', err));
+  },
+  () => {
+    // Signed out — auth gate is shown by auth.js
+    syncSeedExercises().catch((err) => console.warn('syncSeedExercises failed:', err));
+  }
+);

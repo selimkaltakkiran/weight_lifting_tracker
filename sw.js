@@ -1,9 +1,13 @@
-const CACHE_NAME = 'stack-shell-v1';
+const CACHE_NAME = 'stack-shell-v4';
 const SHELL_ASSETS = [
   './',
   './index.html',
   './css/styles.css',
   './js/app.js',
+  './js/auth.js',
+  './js/data.js',
+  './js/firebase-config.js',
+  './js/csv-import.js',
   './manifest.json',
   './icons/icon.svg',
   './icons/icon-maskable.svg',
