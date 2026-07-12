@@ -3,6 +3,7 @@ import { initAuth } from './auth.js';
 import { getSessions, addSession, updateSessionExercises, migrateLocalDataIfNeeded, getUserProfile, updateUserProfile } from './data.js';
 import { parseWorkoutCsv } from './csv-import.js';
 import { getExercises, addExerciseIfNew, syncSeedExercises } from './exercises.js';
+import { getWorkouts } from './workouts.js';
 
 // Register service worker for offline/installable support
 if ('serviceWorker' in navigator) {
@@ -61,6 +62,8 @@ const exerciseListEl = document.getElementById('exercise-list');
 const addExerciseForm = document.getElementById('add-exercise-form');
 const exerciseNameInput = document.getElementById('exercise-name-input');
 const exerciseDatalistEl = document.getElementById('exercise-datalist');
+const todaysWorkoutsEl = document.getElementById('todays-workouts');
+const todaysWorkoutsListEl = document.getElementById('todays-workouts-list');
 
 async function renderExerciseDatalist() {
   try {
@@ -92,11 +95,65 @@ function dateKey(iso) {
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 }
 
+function todayDateStr() {
+  const d = new Date();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
+async function renderTodaysWorkouts(todaysExercises) {
+  const doneNames = new Set(todaysExercises.map((ex) => ex.name.trim().toLowerCase()));
+  const workouts = await getWorkouts();
+  const todaysWorkouts = workouts.filter((w) => w.date === todayDateStr());
+
+  if (todaysWorkouts.length === 0) {
+    todaysWorkoutsEl.hidden = true;
+    return;
+  }
+
+  todaysWorkoutsEl.hidden = false;
+  todaysWorkoutsListEl.innerHTML = '';
+
+  todaysWorkouts.forEach((workout) => {
+    const isDone = doneNames.has(workout.exerciseName.trim().toLowerCase());
+    const li = document.createElement('li');
+    li.className = `workout-row ${isDone ? 'is-done' : 'is-pending'}`;
+    li.innerHTML = `
+      <span class="workout-row-info">
+        <span class="exercise-name">${escapeHtml(workout.exerciseName)}</span>
+        <span class="exercise-meta">${workout.weight}kg × ${workout.reps} reps</span>
+      </span>
+      <button type="button" class="workout-start-btn">Start session</button>
+    `;
+    li.querySelector('.workout-start-btn').addEventListener('click', () => startWorkoutSession(workout.exerciseName));
+    todaysWorkoutsListEl.appendChild(li);
+  });
+}
+
+function startWorkoutSession(exerciseName) {
+  if (!activeSession) {
+    activeSession = { startedAt: new Date().toISOString(), exercises: [] };
+  }
+  const alreadyAdded = activeSession.exercises.some(
+    (ex) => ex.name.trim().toLowerCase() === exerciseName.trim().toLowerCase()
+  );
+  if (!alreadyAdded) {
+    activeSession.exercises.push({ name: exerciseName, sets: [] });
+  }
+  showSession();
+}
+
 async function renderHome() {
   const sessions = await getSessions();
-  const last = sessions[sessions.length - 1];
+  const todayKey = dateKey(new Date().toISOString());
+  const todaysExercises = sessions
+    .filter((s) => dateKey(s.startedAt) === todayKey)
+    .flatMap((s) => s.exercises);
 
-  if (!last) {
+  renderTodaysWorkouts(todaysExercises).catch((err) => console.warn('renderTodaysWorkouts failed:', err));
+
+  if (todaysExercises.length === 0) {
     emptyState.hidden = false;
     lastSessionEl.hidden = true;
     return;
@@ -104,10 +161,10 @@ async function renderHome() {
 
   emptyState.hidden = true;
   lastSessionEl.hidden = false;
-  lastSessionDateEl.textContent = formatDate(last.startedAt);
+  lastSessionDateEl.textContent = formatDate(new Date().toISOString());
   lastSessionListEl.innerHTML = '';
 
-  last.exercises.forEach((ex) => {
+  todaysExercises.forEach((ex) => {
     const li = document.createElement('li');
     const topSet = ex.sets.reduce((best, s) => (s.weight > best.weight ? s : best), ex.sets[0]);
     li.innerHTML = `
@@ -765,12 +822,52 @@ const profileInputWeight = document.getElementById('profile-input-weight');
 
 const GENDER_LABELS = { male: 'Male', female: 'Female', other: 'Other' };
 
+const workoutsListEl = document.getElementById('workouts-list');
+const workoutsEmptyStateEl = document.getElementById('workouts-empty-state');
+
+function formatWorkoutDate(dateStr) {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+async function renderWorkoutsList() {
+  const workouts = await getWorkouts();
+
+  if (workouts.length === 0) {
+    workoutsEmptyStateEl.hidden = false;
+    workoutsListEl.innerHTML = '';
+    return;
+  }
+
+  workoutsEmptyStateEl.hidden = true;
+  workoutsListEl.innerHTML = '';
+
+  workouts
+    .slice()
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .forEach((workout) => {
+      const li = document.createElement('li');
+      li.className = 'workout-row';
+      li.innerHTML = `
+        <span class="workout-row-info">
+          <span class="exercise-name">${escapeHtml(workout.exerciseName)}</span>
+          <span class="exercise-meta">${formatWorkoutDate(workout.date)} · ${workout.weight}kg × ${workout.reps} reps</span>
+        </span>
+      `;
+      workoutsListEl.appendChild(li);
+    });
+}
+
 async function renderProfile() {
   const profile = await getUserProfile();
   profileGenderEl.textContent = GENDER_LABELS[profile.gender] || '—';
   profileAgeEl.textContent = profile.age != null ? profile.age : '—';
   profileHeightEl.textContent = profile.height != null ? `${profile.height} cm` : '—';
   profileWeightEl.textContent = profile.weight != null ? `${profile.weight} kg` : '—';
+  renderWorkoutsList().catch((err) => console.warn('renderWorkoutsList failed:', err));
 }
 
 async function openEditProfileModal() {

@@ -70,6 +70,11 @@
   <!-- Home view -->
   <main class="app-main" id="view-home">
 
+    <div id="todays-workouts" class="todays-workouts" hidden>
+      <p class="last-session-label">Today's Workouts</p>
+      <ul class="workout-list" id="todays-workouts-list"></ul>
+    </div>
+
     <div id="empty-state" class="empty-state" hidden>
       <svg class="empty-illustration" viewBox="0 0 220 160" fill="none" xmlns="http://www.w3.org/2000/svg">
         <!-- bar -->
@@ -100,7 +105,7 @@
     </div>
 
     <div id="last-session" class="last-session" hidden>
-      <p class="last-session-label">Last session</p>
+      <p class="last-session-label">Today</p>
       <h2 class="last-session-date" id="last-session-date"></h2>
       <ul class="last-session-list" id="last-session-list"></ul>
       <button class="cta-primary" type="button" id="btn-new-session">
@@ -347,6 +352,12 @@
 
       <button type="button" class="cta-edit-profile" id="btn-edit-profile">Edit Profile</button>
 
+      <div class="profile-workouts" id="profile-workouts">
+        <p class="last-session-label">Workouts</p>
+        <div id="workouts-empty-state" class="workouts-empty" hidden>No workouts assigned yet.</div>
+        <ul class="workout-list" id="workouts-list"></ul>
+      </div>
+
       <p class="import-hint">CSV columns: <strong>date</strong> (M/D/YYYY), <strong>name</strong>, <strong>weight</strong>, <strong>reps</strong>, <strong>sets</strong>, <strong>notes</strong> (optional). Extra columns like total/avg set vol are ignored.</p>
       <input type="file" id="csv-import-input" accept=".csv,text/csv" hidden />
       <button type="button" class="cta-import" id="btn-import-csv">Import CSV</button>
@@ -362,7 +373,7 @@
         <path d="M3 11.5 12 4l9 7.5"></path>
         <path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"></path>
       </svg>
-      Home
+      Today
       <span class="tab-dot"></span>
     </button>
     <button class="tab-item" data-tab="log" type="button">
