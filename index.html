@@ -29,7 +29,7 @@
   <!-- Header -->
   <header class="app-header">
     <div class="wordmark">STA<span>CK</span></div>
-    <button class="icon-btn" type="button" aria-label="Settings">
+    <button class="icon-btn" type="button" id="btn-settings" aria-label="Settings">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="3"></circle>
         <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
@@ -421,8 +421,6 @@
   <!-- Profile view -->
   <main class="app-main" id="view-profile" hidden>
     <div class="profile-card">
-      <p class="profile-email" id="profile-email"></p>
-
       <div class="profile-stats" id="profile-stats">
         <div class="profile-stat">
           <span class="profile-stat-label">Gender</span>
@@ -458,6 +456,23 @@
           <button type="button" class="modal-btn" id="btn-copy-trainer-id">Copy</button>
         </div>
       </div>
+
+    </div>
+  </main>
+
+  <!-- Settings view -->
+  <main class="app-main" id="view-settings" hidden>
+    <div class="log-day-header">
+      <button class="icon-btn" type="button" id="btn-settings-back" aria-label="Back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M15 18l-6-6 6-6"></path>
+        </svg>
+      </button>
+      <h2 class="log-day-date">Settings</h2>
+    </div>
+
+    <div class="profile-card">
+      <p class="profile-email" id="profile-email"></p>
 
       <div class="profile-trainer-access">
         <p class="last-session-label">Trainer Access</p>

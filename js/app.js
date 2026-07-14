@@ -68,7 +68,31 @@ const viewProfile = document.getElementById('view-profile');
 const viewLog = document.getElementById('view-log');
 const viewProgress = document.getElementById('view-progress');
 const viewClients = document.getElementById('view-clients');
+const viewSettings = document.getElementById('view-settings');
 const tabClientsBtn = document.getElementById('tab-clients');
+
+// Settings (opened from header gear icon, not part of the tab bar)
+const btnSettings = document.getElementById('btn-settings');
+const btnSettingsBack = document.getElementById('btn-settings-back');
+let tabBeforeSettings = null;
+
+btnSettings.addEventListener('click', () => {
+  tabBeforeSettings = document.querySelector('.tab-item.is-active');
+  viewHome.hidden = true;
+  viewSession.hidden = true;
+  viewProfile.hidden = true;
+  viewLog.hidden = true;
+  viewProgress.hidden = true;
+  viewClients.hidden = true;
+  viewSettings.hidden = false;
+  renderProfile();
+});
+
+btnSettingsBack.addEventListener('click', () => {
+  viewSettings.hidden = true;
+  const tab = tabBeforeSettings || document.querySelector('.tab-item[data-tab="home"]');
+  tab.click();
+});
 
 document.querySelectorAll('.tab-item').forEach((tab) => {
   tab.addEventListener('click', () => {
@@ -83,6 +107,7 @@ document.querySelectorAll('.tab-item').forEach((tab) => {
     viewLog.hidden = !isLog;
     viewProgress.hidden = !isProgress;
     viewClients.hidden = !isClients;
+    viewSettings.hidden = true;
     if (isProfile) {
       viewHome.hidden = true;
       viewSession.hidden = true;
