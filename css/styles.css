@@ -1201,6 +1201,31 @@ a {
   text-align: left;
 }
 
+/* ---- PWA update banner ---- */
+
+.update-banner {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 16px;
+  background: var(--surface-raised);
+  border-bottom: 1px solid var(--plate-green);
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.update-refresh-btn {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  background: var(--plate-green);
+  color: var(--accent-contrast);
+  font-weight: 600;
+  font-size: 12px;
+  border-radius: var(--radius-sm);
+}
+
 /* ---- Trainer access / clients ---- */
 
 .viewing-client-banner {

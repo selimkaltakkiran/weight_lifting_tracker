@@ -14,10 +14,50 @@ function isViewingClient() {
   return isTrainer && !!activeClientUid;
 }
 
-// Register service worker for offline/installable support
+// Register service worker for offline/installable support, with an
+// "update available" prompt when a new version has been deployed.
 if ('serviceWorker' in navigator) {
+  const updateBanner = document.getElementById('update-banner');
+  const updateRefreshBtn = document.getElementById('btn-update-refresh');
+  let waitingWorker = null;
+  let refreshing = false;
+
+  function showUpdateBanner(worker) {
+    waitingWorker = worker;
+    updateBanner.hidden = false;
+  }
+
+  updateRefreshBtn?.addEventListener('click', () => {
+    waitingWorker?.postMessage({ type: 'SKIP_WAITING' });
+  });
+
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (refreshing) return;
+    refreshing = true;
+    window.location.reload();
+  });
+
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch((err) => {
+    navigator.serviceWorker.register('sw.js').then((registration) => {
+      if (registration.waiting && navigator.serviceWorker.controller) {
+        showUpdateBanner(registration.waiting);
+      }
+
+      registration.addEventListener('updatefound', () => {
+        const newWorker = registration.installing;
+        if (!newWorker) return;
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            showUpdateBanner(newWorker);
+          }
+        });
+      });
+
+      setInterval(() => registration.update(), 60 * 60 * 1000);
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') registration.update();
+      });
+    }).catch((err) => {
       console.warn('Service worker registration failed:', err);
     });
   });
