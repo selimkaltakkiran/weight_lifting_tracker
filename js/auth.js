@@ -10,6 +10,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 
 export let currentUser = null;
+export let isTrainer = false;
 
 const viewAuth = document.getElementById('view-auth');
 const tabBar = document.querySelector('.tab-bar');
@@ -110,13 +111,21 @@ if (signOutBtn) {
 }
 
 export function initAuth(onSignedIn, onSignedOut) {
-  onAuthStateChanged(auth, (user) => {
+  onAuthStateChanged(auth, async (user) => {
     currentUser = user;
     if (user) {
       hideAuthGate();
       if (profileEmailEl) profileEmailEl.textContent = user.email || '';
+      try {
+        const tokenResult = await user.getIdTokenResult(true);
+        isTrainer = tokenResult.claims.trainer === true;
+      } catch (err) {
+        console.warn('Failed to refresh ID token:', err);
+        isTrainer = false;
+      }
       onSignedIn(user);
     } else {
+      isTrainer = false;
       showAuthGate();
       onSignedOut();
     }

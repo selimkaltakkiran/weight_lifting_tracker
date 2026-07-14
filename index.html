@@ -37,6 +37,12 @@
     </button>
   </header>
 
+  <!-- Trainer "viewing client" banner -->
+  <div class="viewing-client-banner" id="viewing-client-banner" hidden>
+    <span>Viewing <strong id="viewing-client-email"></strong></span>
+    <button type="button" class="viewing-client-exit-btn" id="btn-exit-client-view">Exit client view</button>
+  </div>
+
   <!-- Auth gate -->
   <main class="app-main auth-view" id="view-auth" hidden>
     <div class="auth-card">
@@ -280,6 +286,86 @@
 
   </main>
 
+  <!-- Clients view (trainer only) -->
+  <main class="app-main" id="view-clients" hidden>
+
+    <!-- Client list sub-view -->
+    <section class="clients-list-view" id="clients-list-view">
+      <p class="last-session-label">Your Clients</p>
+      <div id="clients-empty-state" class="empty-state" hidden>
+        <div class="empty-copy">
+          <h1 class="empty-title">No clients yet</h1>
+          <p class="empty-subtitle">Share your Trainer ID (in your Profile tab) with a client so they can grant you access.</p>
+        </div>
+      </div>
+      <ul class="workout-list" id="clients-list"></ul>
+    </section>
+
+    <!-- Client detail sub-view -->
+    <section class="client-detail-view" id="client-detail-view" hidden>
+      <div class="log-day-header">
+        <button class="icon-btn" type="button" id="btn-client-detail-back" aria-label="Back to clients">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M15 18l-6-6 6-6"></path>
+          </svg>
+        </button>
+        <h2 class="log-day-date" id="client-detail-email"></h2>
+      </div>
+
+      <div class="profile-stats" id="client-profile-stats">
+        <div class="profile-stat">
+          <span class="profile-stat-label">Gender</span>
+          <span class="profile-stat-value" id="client-profile-gender">—</span>
+        </div>
+        <div class="profile-stat">
+          <span class="profile-stat-label">Age</span>
+          <span class="profile-stat-value" id="client-profile-age">—</span>
+        </div>
+        <div class="profile-stat">
+          <span class="profile-stat-label">Height</span>
+          <span class="profile-stat-value" id="client-profile-height">—</span>
+        </div>
+        <div class="profile-stat">
+          <span class="profile-stat-label">Weight</span>
+          <span class="profile-stat-value" id="client-profile-weight">—</span>
+        </div>
+      </div>
+
+      <p class="import-hint">View this client's logged sessions and progress in the Log and Progress tabs. Planned workouts you assign below appear read-only on their Today and Profile views.</p>
+
+      <div class="profile-workouts">
+        <p class="last-session-label">Planned Workouts</p>
+        <div id="client-workouts-empty-state" class="workouts-empty" hidden>No workouts assigned yet.</div>
+        <ul class="workout-list" id="client-workouts-list"></ul>
+      </div>
+
+      <form class="profile-form" id="assign-workout-form">
+        <input type="hidden" id="assign-workout-id" value="" />
+        <label class="profile-field">
+          <span>Exercise</span>
+          <input type="text" id="assign-workout-exercise" placeholder="e.g. Bench Press" autocomplete="off" required />
+        </label>
+        <label class="profile-field">
+          <span>Date</span>
+          <input type="date" id="assign-workout-date" required />
+        </label>
+        <label class="profile-field">
+          <span>Weight (kg)</span>
+          <input type="number" id="assign-workout-weight" min="0" step="0.5" inputmode="decimal" required />
+        </label>
+        <label class="profile-field">
+          <span>Reps</span>
+          <input type="number" id="assign-workout-reps" min="0" step="1" inputmode="numeric" required />
+        </label>
+        <div class="modal-actions">
+          <button type="button" class="modal-btn modal-btn-cancel" id="cancel-assign-workout-btn" hidden>Cancel edit</button>
+          <button type="submit" class="modal-btn modal-btn-save" id="assign-workout-submit-btn">Add workout</button>
+        </div>
+      </form>
+    </section>
+
+  </main>
+
   <!-- Confirm delete modal -->
   <div class="modal-overlay" id="confirm-delete-modal" hidden>
     <div class="modal-card">
@@ -358,6 +444,25 @@
         <ul class="workout-list" id="workouts-list"></ul>
       </div>
 
+      <div class="profile-trainer-id" id="profile-trainer-id" hidden>
+        <p class="last-session-label">Your Trainer ID</p>
+        <p class="import-hint">Share this ID with your clients so they can grant you access.</p>
+        <div class="trainer-id-row">
+          <code id="trainer-id-value"></code>
+          <button type="button" class="modal-btn" id="btn-copy-trainer-id">Copy</button>
+        </div>
+      </div>
+
+      <div class="profile-trainer-access">
+        <p class="last-session-label">Trainer Access</p>
+        <p class="import-hint">Add a trainer's ID (shown in their Profile tab) to let them view your data and manage your planned workouts.</p>
+        <ul class="trainer-access-list" id="trainer-access-list"></ul>
+        <form class="add-trainer-form" id="add-trainer-form">
+          <input type="text" id="add-trainer-input" placeholder="Trainer ID" autocomplete="off" required />
+          <button type="submit" class="add-exercise-btn">Grant access</button>
+        </form>
+      </div>
+
       <p class="import-hint">CSV columns: <strong>date</strong> (M/D/YYYY), <strong>name</strong>, <strong>weight</strong>, <strong>reps</strong>, <strong>sets</strong>, <strong>notes</strong> (optional). Extra columns like total/avg set vol are ignored.</p>
       <input type="file" id="csv-import-input" accept=".csv,text/csv" hidden />
       <button type="button" class="cta-import" id="btn-import-csv">Import CSV</button>
@@ -399,6 +504,16 @@
         <path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"></path>
       </svg>
       Profile
+      <span class="tab-dot"></span>
+    </button>
+    <button class="tab-item" data-tab="clients" type="button" id="tab-clients" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="8.5" cy="8" r="3"></circle>
+        <circle cx="16.5" cy="9.5" r="2.4"></circle>
+        <path d="M3 20c0-3 2.5-5.2 5.5-5.2S14 17 14 20"></path>
+        <path d="M14.5 15.3c2.6.2 4.5 2.2 4.5 4.7"></path>
+      </svg>
+      Clients
       <span class="tab-dot"></span>
     </button>
   </nav>

@@ -1,9 +1,18 @@
 // Stack — app shell bootstrap
-import { initAuth } from './auth.js';
-import { getSessions, addSession, updateSessionExercises, migrateLocalDataIfNeeded, getUserProfile, updateUserProfile } from './data.js';
+import { initAuth, currentUser, isTrainer } from './auth.js';
+import { getSessions, addSession, updateSessionExercises, migrateLocalDataIfNeeded, getUserProfile, updateUserProfile, syncOwnEmail, addTrainerAccess, removeTrainerAccess } from './data.js';
 import { parseWorkoutCsv } from './csv-import.js';
 import { getExercises, addExerciseIfNew, syncSeedExercises } from './exercises.js';
-import { getWorkouts } from './workouts.js';
+import { getWorkouts, addWorkout, updateWorkout, deleteWorkout } from './workouts.js';
+import { getClients, activeClientUid, activeClientEmail, setActiveClient, clearActiveClient } from './trainer.js';
+
+function effectiveUid() {
+  return (isTrainer && activeClientUid) ? activeClientUid : currentUser?.uid;
+}
+
+function isViewingClient() {
+  return isTrainer && !!activeClientUid;
+}
 
 // Register service worker for offline/installable support
 if ('serviceWorker' in navigator) {
@@ -18,6 +27,8 @@ if ('serviceWorker' in navigator) {
 const viewProfile = document.getElementById('view-profile');
 const viewLog = document.getElementById('view-log');
 const viewProgress = document.getElementById('view-progress');
+const viewClients = document.getElementById('view-clients');
+const tabClientsBtn = document.getElementById('tab-clients');
 
 document.querySelectorAll('.tab-item').forEach((tab) => {
   tab.addEventListener('click', () => {
@@ -27,9 +38,11 @@ document.querySelectorAll('.tab-item').forEach((tab) => {
     const isProfile = tab.dataset.tab === 'profile';
     const isLog = tab.dataset.tab === 'log';
     const isProgress = tab.dataset.tab === 'progress';
+    const isClients = tab.dataset.tab === 'clients';
     viewProfile.hidden = !isProfile;
     viewLog.hidden = !isLog;
     viewProgress.hidden = !isProgress;
+    viewClients.hidden = !isClients;
     if (isProfile) {
       viewHome.hidden = true;
       viewSession.hidden = true;
@@ -42,6 +55,10 @@ document.querySelectorAll('.tab-item').forEach((tab) => {
       viewHome.hidden = true;
       viewSession.hidden = true;
       renderProgress();
+    } else if (isClients) {
+      viewHome.hidden = true;
+      viewSession.hidden = true;
+      showClientsList();
     } else if (tab.dataset.tab === 'home') {
       showHome();
     }
@@ -225,7 +242,7 @@ async function renderLog() {
 }
 
 async function renderCalendar() {
-  const sessions = await getSessions();
+  const sessions = await getSessions(effectiveUid());
   const daysWithSessions = new Set(sessions.map((s) => dateKey(s.startedAt)));
 
   calendarMonthLabelEl.textContent = calendarMonth.toLocaleDateString(undefined, {
@@ -265,7 +282,7 @@ async function showDayView(date) {
   logDayView.hidden = false;
   logDayDateEl.textContent = formatDate(date.toISOString());
 
-  const sessions = await getSessions();
+  const sessions = await getSessions(effectiveUid());
   const key = dateKey(date.toISOString());
   const rows = sessionRows(sessions).filter((row) => dateKey(row.date) === key);
 
@@ -291,6 +308,10 @@ async function showDayView(date) {
       <td>${Math.round(row.avgSetVol * 100) / 100}</td>
       <td>${escapeHtml(row.notes)}</td>
     `;
+
+    logTableBodyEl.appendChild(tr);
+
+    if (isViewingClient()) return;
 
     const actionsTr = document.createElement('tr');
     actionsTr.className = 'log-actions-row';
@@ -321,7 +342,6 @@ async function showDayView(date) {
       openDeleteExerciseModal(row, date);
     });
 
-    logTableBodyEl.appendChild(tr);
     logTableBodyEl.appendChild(actionsTr);
   });
 }
@@ -355,7 +375,7 @@ async function renderProgress() {
   progressListView.hidden = false;
   progressMonthLabelEl.textContent = progressMonthLabel(progressMonth);
 
-  const sessions = await getSessions();
+  const sessions = await getSessions(effectiveUid());
   const monthKey = `${progressMonth.getFullYear()}-${progressMonth.getMonth()}`;
 
   const stats = new Map(); // name -> { volume, reps, sessions }
@@ -417,7 +437,7 @@ async function renderProgressDetail(name, metric = currentDetailMetric) {
   const metricConfig = PROGRESS_METRICS[metric];
   progressDetailMonthLabelEl.textContent = progressMonthLabel(progressMonth);
 
-  const sessions = await getSessions();
+  const sessions = await getSessions(effectiveUid());
   const monthKey = `${progressMonth.getFullYear()}-${progressMonth.getMonth()}`;
 
   const dayValues = new Map(); // dateKey -> { day, value }
@@ -868,7 +888,62 @@ async function renderProfile() {
   profileHeightEl.textContent = profile.height != null ? `${profile.height} cm` : '—';
   profileWeightEl.textContent = profile.weight != null ? `${profile.weight} kg` : '—';
   renderWorkoutsList().catch((err) => console.warn('renderWorkoutsList failed:', err));
+  renderTrainerAccess(profile.trainerIds || []);
+  renderTrainerId();
 }
+
+/* ==========================================================================
+   Trainer access (client side) + trainer identity
+   ========================================================================== */
+
+const trainerIdBlockEl = document.getElementById('profile-trainer-id');
+const trainerIdValueEl = document.getElementById('trainer-id-value');
+const btnCopyTrainerId = document.getElementById('btn-copy-trainer-id');
+const trainerAccessListEl = document.getElementById('trainer-access-list');
+const addTrainerForm = document.getElementById('add-trainer-form');
+const addTrainerInput = document.getElementById('add-trainer-input');
+
+function renderTrainerId() {
+  trainerIdBlockEl.hidden = !isTrainer;
+  if (isTrainer && currentUser) trainerIdValueEl.textContent = currentUser.uid;
+}
+
+btnCopyTrainerId.addEventListener('click', async () => {
+  if (!currentUser) return;
+  try {
+    await navigator.clipboard.writeText(currentUser.uid);
+    btnCopyTrainerId.textContent = 'Copied!';
+    setTimeout(() => { btnCopyTrainerId.textContent = 'Copy'; }, 1500);
+  } catch (err) {
+    console.warn('Copy failed:', err);
+  }
+});
+
+function renderTrainerAccess(trainerIds) {
+  trainerAccessListEl.innerHTML = '';
+  trainerIds.forEach((id) => {
+    const li = document.createElement('li');
+    li.className = 'trainer-access-row';
+    li.innerHTML = `
+      <code>${escapeHtml(id)}</code>
+      <button type="button" class="trainer-access-remove-btn">Remove</button>
+    `;
+    li.querySelector('.trainer-access-remove-btn').addEventListener('click', async () => {
+      await removeTrainerAccess(id);
+      renderProfile();
+    });
+    trainerAccessListEl.appendChild(li);
+  });
+}
+
+addTrainerForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const trainerUid = addTrainerInput.value.trim();
+  if (!trainerUid) return;
+  await addTrainerAccess(trainerUid);
+  addTrainerInput.value = '';
+  renderProfile();
+});
 
 async function openEditProfileModal() {
   const profile = await getUserProfile();
@@ -902,14 +977,194 @@ editProfileForm.addEventListener('submit', async (e) => {
   renderProfile();
 });
 
+/* ==========================================================================
+   Trainer — clients
+   ========================================================================== */
+
+const clientsListViewEl = document.getElementById('clients-list-view');
+const clientDetailViewEl = document.getElementById('client-detail-view');
+const clientsListEl = document.getElementById('clients-list');
+const clientsEmptyStateEl = document.getElementById('clients-empty-state');
+const clientDetailEmailEl = document.getElementById('client-detail-email');
+const clientProfileGenderEl = document.getElementById('client-profile-gender');
+const clientProfileAgeEl = document.getElementById('client-profile-age');
+const clientProfileHeightEl = document.getElementById('client-profile-height');
+const clientProfileWeightEl = document.getElementById('client-profile-weight');
+const clientWorkoutsListEl = document.getElementById('client-workouts-list');
+const clientWorkoutsEmptyStateEl = document.getElementById('client-workouts-empty-state');
+const viewingClientBannerEl = document.getElementById('viewing-client-banner');
+const viewingClientEmailEl = document.getElementById('viewing-client-email');
+const btnExitClientView = document.getElementById('btn-exit-client-view');
+const btnClientDetailBack = document.getElementById('btn-client-detail-back');
+
+const assignWorkoutForm = document.getElementById('assign-workout-form');
+const assignWorkoutIdInput = document.getElementById('assign-workout-id');
+const assignWorkoutExerciseInput = document.getElementById('assign-workout-exercise');
+const assignWorkoutDateInput = document.getElementById('assign-workout-date');
+const assignWorkoutWeightInput = document.getElementById('assign-workout-weight');
+const assignWorkoutRepsInput = document.getElementById('assign-workout-reps');
+const assignWorkoutSubmitBtn = document.getElementById('assign-workout-submit-btn');
+const cancelAssignWorkoutBtn = document.getElementById('cancel-assign-workout-btn');
+
+function updateViewingClientBanner() {
+  const viewing = isViewingClient();
+  viewingClientBannerEl.hidden = !viewing;
+  if (viewing) viewingClientEmailEl.textContent = activeClientEmail || activeClientUid;
+}
+
+function showClientsList() {
+  clientsListViewEl.hidden = false;
+  clientDetailViewEl.hidden = true;
+  renderClients().catch((err) => console.warn('renderClients failed:', err));
+}
+
+async function renderClients() {
+  const clients = await getClients();
+
+  if (clients.length === 0) {
+    clientsEmptyStateEl.hidden = false;
+    clientsListEl.innerHTML = '';
+    return;
+  }
+
+  clientsEmptyStateEl.hidden = true;
+  clientsListEl.innerHTML = '';
+
+  clients.forEach((client) => {
+    const li = document.createElement('li');
+    li.className = 'workout-row client-row';
+    li.innerHTML = `
+      <span class="workout-row-info">
+        <span class="exercise-name">${escapeHtml(client.email || client.id)}</span>
+      </span>
+    `;
+    li.addEventListener('click', () => selectClient(client));
+    clientsListEl.appendChild(li);
+  });
+}
+
+function selectClient(client) {
+  setActiveClient(client.id, client.email || client.id);
+  updateViewingClientBanner();
+  clientsListViewEl.hidden = true;
+  clientDetailViewEl.hidden = false;
+  clientDetailEmailEl.textContent = client.email || client.id;
+  resetAssignWorkoutForm();
+  renderClientDetail().catch((err) => console.warn('renderClientDetail failed:', err));
+}
+
+async function renderClientDetail() {
+  if (!activeClientUid) return;
+  const [profile, workouts] = await Promise.all([
+    getUserProfile(activeClientUid),
+    getWorkouts(activeClientUid),
+  ]);
+
+  clientProfileGenderEl.textContent = GENDER_LABELS[profile.gender] || '—';
+  clientProfileAgeEl.textContent = profile.age != null ? profile.age : '—';
+  clientProfileHeightEl.textContent = profile.height != null ? `${profile.height} cm` : '—';
+  clientProfileWeightEl.textContent = profile.weight != null ? `${profile.weight} kg` : '—';
+
+  if (workouts.length === 0) {
+    clientWorkoutsEmptyStateEl.hidden = false;
+    clientWorkoutsListEl.innerHTML = '';
+    return;
+  }
+
+  clientWorkoutsEmptyStateEl.hidden = true;
+  clientWorkoutsListEl.innerHTML = '';
+
+  workouts
+    .slice()
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .forEach((workout) => {
+      const li = document.createElement('li');
+      li.className = 'workout-row';
+      li.innerHTML = `
+        <span class="workout-row-info">
+          <span class="exercise-name">${escapeHtml(workout.exerciseName)}</span>
+          <span class="exercise-meta">${formatWorkoutDate(workout.date)} · ${workout.weight}kg × ${workout.reps} reps</span>
+        </span>
+        <span class="log-row-actions">
+          <button type="button" class="log-action-btn client-workout-edit-btn">Edit</button>
+          <button type="button" class="log-action-btn client-workout-delete-btn">Delete</button>
+        </span>
+      `;
+      li.querySelector('.client-workout-edit-btn').addEventListener('click', () => editWorkout(workout));
+      li.querySelector('.client-workout-delete-btn').addEventListener('click', async () => {
+        await deleteWorkout(activeClientUid, workout.id);
+        renderClientDetail();
+      });
+      clientWorkoutsListEl.appendChild(li);
+    });
+}
+
+function resetAssignWorkoutForm() {
+  assignWorkoutIdInput.value = '';
+  assignWorkoutForm.reset();
+  assignWorkoutSubmitBtn.textContent = 'Add workout';
+  cancelAssignWorkoutBtn.hidden = true;
+}
+
+function editWorkout(workout) {
+  assignWorkoutIdInput.value = workout.id;
+  assignWorkoutExerciseInput.value = workout.exerciseName;
+  assignWorkoutDateInput.value = workout.date;
+  assignWorkoutWeightInput.value = workout.weight;
+  assignWorkoutRepsInput.value = workout.reps;
+  assignWorkoutSubmitBtn.textContent = 'Save workout';
+  cancelAssignWorkoutBtn.hidden = false;
+}
+
+cancelAssignWorkoutBtn.addEventListener('click', resetAssignWorkoutForm);
+
+assignWorkoutForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!activeClientUid) return;
+
+  const workout = {
+    exerciseName: assignWorkoutExerciseInput.value.trim(),
+    date: assignWorkoutDateInput.value,
+    weight: parseFloat(assignWorkoutWeightInput.value),
+    reps: parseInt(assignWorkoutRepsInput.value, 10),
+  };
+  if (!workout.exerciseName || !workout.date || !Number.isFinite(workout.weight) || !Number.isFinite(workout.reps)) return;
+
+  const workoutId = assignWorkoutIdInput.value;
+  if (workoutId) {
+    await updateWorkout(activeClientUid, workoutId, workout);
+  } else {
+    await addWorkout(activeClientUid, workout);
+  }
+
+  resetAssignWorkoutForm();
+  renderClientDetail();
+});
+
+function exitClientView() {
+  clearActiveClient();
+  updateViewingClientBanner();
+  if (!viewClients.hidden) showClientsList();
+  if (!viewLog.hidden) renderCalendar();
+  if (!viewProgress.hidden) renderProgress();
+}
+
+btnExitClientView.addEventListener('click', exitClientView);
+btnClientDetailBack.addEventListener('click', exitClientView);
+
 initAuth(
   async () => {
     await migrateLocalDataIfNeeded();
+    syncOwnEmail().catch((err) => console.warn('syncOwnEmail failed:', err));
+    tabClientsBtn.hidden = !isTrainer;
+    if (!isTrainer) exitClientView();
     showHome();
     syncSeedExercises().catch((err) => console.warn('syncSeedExercises failed:', err));
   },
   () => {
     // Signed out — auth gate is shown by auth.js
+    tabClientsBtn.hidden = true;
+    exitClientView();
     syncSeedExercises().catch((err) => console.warn('syncSeedExercises failed:', err));
   }
 );

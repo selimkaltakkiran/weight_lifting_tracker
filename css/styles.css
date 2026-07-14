@@ -1201,6 +1201,130 @@ a {
   text-align: left;
 }
 
+/* ---- Trainer access / clients ---- */
+
+.viewing-client-banner {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 16px;
+  background: var(--surface-raised);
+  border-bottom: 1px solid var(--accent);
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.viewing-client-exit-btn {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 600;
+  font-size: 12px;
+  border-radius: var(--radius-sm);
+}
+
+.profile-trainer-id,
+.profile-trainer-access {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+}
+
+.trainer-id-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.trainer-id-row code {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.trainer-access-list {
+  list-style: none;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.trainer-access-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.trainer-access-row code {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.trainer-access-remove-btn {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border: 1px solid var(--plate-red);
+  border-radius: var(--radius-sm);
+  color: var(--plate-red);
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.add-trainer-form {
+  display: flex;
+  gap: 8px;
+}
+
+.add-trainer-form input {
+  flex: 1;
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.clients-list-view {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+}
+
+.client-detail-view {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  text-align: left;
+}
+
+.client-row {
+  cursor: pointer;
+}
+
 .import-status.is-error {
   border-color: var(--plate-red);
   color: var(--plate-red);

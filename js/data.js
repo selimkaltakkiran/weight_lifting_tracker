@@ -10,6 +10,8 @@ import {
   doc,
   getDoc,
   setDoc,
+  arrayUnion,
+  arrayRemove,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
 const STORAGE_KEY = 'stack.sessions';
@@ -39,15 +41,15 @@ function writeLocalProfile(profile) {
   localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
 }
 
-export async function getSessions() {
-  if (!currentUser) return readLocalSessions();
+export async function getSessions(uid = currentUser?.uid) {
+  if (!uid) return readLocalSessions();
 
-  const sessionsRef = collection(db, 'users', currentUser.uid, 'sessions');
+  const sessionsRef = collection(db, 'users', uid, 'sessions');
   const q = query(sessionsRef, orderBy('startedAt'));
   const snapshot = await getDocs(q);
   const sessions = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-  writeLocalSessions(sessions);
+  if (uid === currentUser?.uid) writeLocalSessions(sessions);
   return sessions;
 }
 
@@ -79,20 +81,22 @@ export async function updateSessionExercises(sessionId, exercises) {
   await setDoc(sessionRef, { exercises }, { merge: true });
 }
 
-export async function getUserProfile() {
-  if (!currentUser) return readLocalProfile();
+export async function getUserProfile(uid = currentUser?.uid) {
+  if (!uid) return readLocalProfile();
 
-  const userRef = doc(db, 'users', currentUser.uid);
+  const userRef = doc(db, 'users', uid);
   const userSnap = await getDoc(userRef);
   const data = userSnap.exists() ? userSnap.data() : {};
   const profile = {
+    email: data.email || '',
     gender: data.gender || '',
     age: data.age ?? null,
     height: data.height ?? null,
     weight: data.weight ?? null,
+    trainerIds: data.trainerIds || [],
   };
 
-  writeLocalProfile(profile);
+  if (uid === currentUser?.uid) writeLocalProfile(profile);
   return profile;
 }
 
@@ -105,6 +109,24 @@ export async function updateUserProfile(profile) {
   const userRef = doc(db, 'users', currentUser.uid);
   await setDoc(userRef, profile, { merge: true });
   writeLocalProfile(profile);
+}
+
+export async function syncOwnEmail() {
+  if (!currentUser) return;
+  const userRef = doc(db, 'users', currentUser.uid);
+  await setDoc(userRef, { email: currentUser.email || '' }, { merge: true });
+}
+
+export async function addTrainerAccess(trainerUid) {
+  if (!currentUser || !trainerUid) return;
+  const userRef = doc(db, 'users', currentUser.uid);
+  await setDoc(userRef, { trainerIds: arrayUnion(trainerUid) }, { merge: true });
+}
+
+export async function removeTrainerAccess(trainerUid) {
+  if (!currentUser || !trainerUid) return;
+  const userRef = doc(db, 'users', currentUser.uid);
+  await setDoc(userRef, { trainerIds: arrayRemove(trainerUid) }, { merge: true });
 }
 
 export async function migrateLocalDataIfNeeded() {

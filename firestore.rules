@@ -1,19 +1,32 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isSelf(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    function isTrainerFor(userId) {
+      return request.auth != null &&
+        request.auth.token.trainer == true &&
+        request.auth.uid in get(/databases/$(database)/documents/users/$(userId)).data.trainerIds;
+    }
+
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if isSelf(userId) || isTrainerFor(userId);
+      allow write: if isSelf(userId);
 
       match /sessions/{sessionId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read: if isSelf(userId) || isTrainerFor(userId);
+        allow write: if isSelf(userId);
       }
 
       match /exercises/{exerciseId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read: if isSelf(userId) || isTrainerFor(userId);
+        allow write: if isSelf(userId);
       }
 
       match /workouts/{workoutId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if isSelf(userId) || isTrainerFor(userId);
       }
     }
   }
